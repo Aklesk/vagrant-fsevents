@@ -1,0 +1,8 @@
+Layout/EndOfLine:
+  EnforcedStyle: lf
+
+Naming/FileName:
+  Enabled: false
+
+Style/RaiseArgs:
+  Enabled: false

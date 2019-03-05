@@ -1,92 +1,70 @@
-vagrant-fsnotify
-================
+# vagrant-fsevents
 
-Forward filesystem change notifications to your [Vagrant][vagrant] VM.
+Activatable filesystem change forwarding to your [Vagrant][vagrant] VM.
 
-Problem
--------
+## Problem this solves
 
-Some filesystems (e.g. ext4, HFS+) have a feature of event notification.
-Interested applications can subscribe and are notified when filesystem events
-happen (e.g. a file was created, modified or deleted).
+When developing inside [VirtualBox][virtualbox]-based VMs with synced folders,
+filesystem events in the host system do not propagate to processes running inside
+the VM. This causes difficulty for some development environments, particularly
+when using packagers such as Webpack, as they do not update/rebuild in response
+to editor changes.
 
-Applications can make use of this system to provide features such as auto-reload
-or live updates. For example, [Jekyll][jekyll] regenerates the static website
-and [Guard][guard] triggers a test run or a build when source files are
-modified.
+There are a number of partial solutions in the wild, but none are perfect in all
+circumstances. This project builds on [`vagrant-fsnotify`][vagrant-fsnotify] by
+@adrienkohlbecker to provide a simple on-demand, low resource, and highly
+transparent solution. It is particularly effective for a standard development
+VM which is used widely by multiple teams where perhaps only a few people even
+need filesystem event forwarding, and it's not desirable to have an always-on
+solution that hogs system resources.
 
-Unfortunately, [Vagrant][vagrant] users have a hard time making use of these
-features when the application is running inside a virtual machine. When the file
-is modified on the host, the event is not propagated to the guest and the
-auto-reload never happens.
+## Mechanism
 
-There are several bug reports related to this issue:
+`vagrant-fsevents` runs a process listening for filesystem changes on the host
+that affect shared folders, and forwards them to the VM as shell commands such
+as `touch` (and `rm`, as appropriate) using Vagrant's VM administration API.
 
-- <https://www.virtualbox.org/ticket/10660>
-- <https://github.com/guard/listen/issues/53>
-- <https://github.com/guard/listen/issues/57>
-- <https://github.com/guard/guard/issues/269>
-- <https://github.com/mitchellh/vagrant/issues/707>
+## Caveats
 
-There are two generally accepted solutions. The first is fall back to long
-polling, the other is to
-[forward the events over TCP][forwarding-file-events-over-tcp]. The problem with
-long polling is that it's painfully slow, especially in shared folders. The
-problem with forwarding events is that it's not a general approach that works
-for any application.
+Inconveniently, while filesystem events are not properly forwarded into the VM,
+they're forwarded back out without issue, so every time this plugin triggers an
+update in the VM, a second filesystem event is fired in the host system. To
+prevent the obvious infinite-loop issue this could cause, a 2-second per-file
+dead-zone is used after each update event.
 
-Solution
---------
+This is unfortunately only a partial solution, and large filesystem changes such
+as checking out another git branch can still cause issues such as infinite
+notification loops and accidental creation of blank files that should have been
+removed. However, these issues are usually minor, easily fixed via git, and can
+be entirely avoided by killing the monitor process before major changes.
 
-`vagrant-fsnotify` proposes a different solution: run a process listening for
-filesystem events on the host and, when a notification is received, access the
-virtual machine guest and `touch` the file in there (or `touch` followed by a
-`rm` in case of file removals), causing an event to be propagated on the guest
-filesystem.
+## Installation
 
-This leverages the speed of using real filesystem events while still being
-general enough to don't require any support from applications.
-
-Caveats
--------
-
-Due to the nature of filesystem events and the fact that `vagrant-fsnotify` uses
-`touch`, the events are triggerred back on the host a second time.  To avoid
-infinite loops, we add an arbitrary debounce of 2 seconds between `touch`-ing
-the same file. Thus, if a file is modified on the host more than once in 2
-seconds the VM will only see one notification.  If the second trigger on the
-host or this arbitrary debounce is unacceptable for your application,
-`vagrant-fsnotify` might not be for you.
-
-Installation
-------------
-
-`vagrant-fsnotify` is a [Vagrant][vagrant] plugin and can be installed by
+`vagrant-fsevents` is a [Vagrant][vagrant] plugin and can be installed by
 running:
 
 ```console
-$ vagrant plugin install vagrant-fsnotify
+$ vagrant plugin install vagrant-fsevents
 ```
 
 [Vagrant][vagrant] version 1.7.3 or greater is required.
 
-Usage
------
+## Usage
 
 ### Basic setup
 
-In `Vagrantfile` synced folder configuration, add the `fsnotify: true`
-option. For example, in order to enable `vagrant-fsnotify` for the the default
+In `Vagrantfile` synced folder configuration, add the `fsevents: true`
+option. For example, in order to enable `vagrant-fsevents` for the the default
 `/vagrant` shared folder, add the following:
 
 ```ruby
-config.vm.synced_folder ".", "/vagrant", fsnotify: true
+config.vm.synced_folder ".", "/vagrant", fsevents: true
 ```
 
 When the guest virtual machine is up, run the following:
 
 ```console
-$ vagrant fsnotify
+$ vagrant fsevents
 ```
 
 This starts the long running process that captures filesystem events on the host
@@ -95,10 +73,10 @@ and forwards them to the guest virtual machine.
 ### Multi-VM environments
 
 In multi-VM environments, you can specify the name of the VMs targeted by
-`vagrant-fsnotify` using:
+`vagrant-fsevents` using:
 
 ```console
-$ vagrant fsnotify <vm-name-1> <vm-name-2> ...
+$ vagrant fsevents <vm-name-1> <vm-name-2> ...
 ```
 
 ### Excluding files
@@ -108,12 +86,12 @@ option, which takes an array of strings (matched as a regexp against relative
 paths):
 
 ```ruby
-config.vm.synced_folder ".", "/vagrant", fsnotify: true,
+config.vm.synced_folder ".", "/vagrant", fsevents: true,
                                          exclude: ["path1", "some/directory"]
 ```
 
 This will exclude all files inside the `path1` and `some/directory`. It will
-also exclude files such as `another/directory/path1`
+also exclude files such as `another/directory/path1`.
 
 ### Guest path override
 
@@ -122,7 +100,7 @@ example when using [`vagrant-bindfs`][vagrant-bindfs], you can use the
 `:override_guestpath` option:
 
 ```ruby
-config.vm.synced_folder ".", "/vagrant", fsnotify: true,
+config.vm.synced_folder ".", "/vagrant", fsevents: true,
                                          override_guestpath: "/real/path"
 ```
 
@@ -131,30 +109,31 @@ This will forward a notification on `./myfile` to `/real/path/myfile` instead of
 
 ### Select filesystem events
 
-By default, when the `:fsnotify` key in the `Vagrantfile` is configured with
-`true`, all filesystem events are forwarded to the VM (i.e. file creation,
-modification and removal events). If, instead, you want to select only a few of
-those events to be forwarded (e.g. you don't care about file removals), you can
-use an Array of Symbols among the following options: `:added`, `:modified` and
-`:removed`.
+By default, when the `:fsevents` key in the `Vagrantfile` is configured with
+`true`, all filesystem events are forwarded to the VM (creation, modification,
+and removal). If, instead, you want to select only some of those events to be
+forwarded (e.g. you don't care about file removals), you can use an Array of
+Symbols among the following options: `:added`, `:modified` and `:removed`.
 
 For example, to forward only added files events to the default `/vagrant`
 folder, add the following to the `Vagrantfile`:
 
 ```ruby
-config.vm.synced_folder ".", "/vagrant", fsnotify: [:added]
+config.vm.synced_folder ".", "/vagrant", fsevents: [:added]
 ```
 
+## Original work
 
-Original work
--------------
-
+This plugin was originally [`vagrant-fsnotify`][vagrant-fsnotify] by @adrienkohlbecker,
+but was renamed to facilitate continued development.
 This plugin used [`vagrant-rsync-back`][vagrant-rsync-back] by @smerill and the
 [Vagrant][vagrant] source code as a starting point.
 
 [vagrant]: https://www.vagrantup.com/
+[virtualbox]: https://www.virtualbox.org/
 [jekyll]: http://jekyllrb.com/
 [guard]: http://guardgem.org/
 [forwarding-file-events-over-tcp]: https://github.com/guard/listen#forwarding-file-events-over-tcp
 [vagrant-bindfs]: https://github.com/gael-ian/vagrant-bindfs
 [vagrant-rsync-back]: https://github.com/smerrill/vagrant-rsync-back
+[vagrant-fsnotify]: https://github.com/adrienkohlbecker/vagrant-fsnotify

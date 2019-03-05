@@ -1,5 +1,7 @@
 /.bundle/
 /.yardoc
+/.history
+/.vscode
 /Gemfile.lock
 /_yardoc/
 /coverage/
@@ -10,3 +12,4 @@
 
 .vagrant/
 *.gem
+vagrant.log
