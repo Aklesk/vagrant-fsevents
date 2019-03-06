@@ -7,23 +7,21 @@ module VagrantPlugins
       def initialize(logger, alerter)
         @logger = logger
         @alerter = alerter
-        @recently_changed = Hash.new(0) # return zero by default
+        @recently_changed = Hash.new { |hash, key| hash[key] = 0 }
       end
 
       # This is the main callback that responds to a change detection event
-      def callback(paths, modified, added, removed)
-        @logger.callback_start(modified, added, removed)
+      def callback(watches, mods, adds, removes)
+        @logger.callback_start(mods, adds, removes)
 
         clear_expired_change_locks
 
-        events = ChangeEvents.make_from(modified, added, removed)
-
-        to_sync = paths.map do |watch_path, watch|
-          bound_events = events.map { |e| e.bind_watch(watch_path, watch) }
-          process_deadzone(select_by_relevance(bound_events))
+        events_to_sync = watches.map do |watch_path, watch|
+          events = ChangeEvents.make(mods, adds, removes, watch_path, watch)
+          process_deadzone(select_by_relevance(events))
         end
 
-        do_sync(to_sync.flatten)
+        forward_events_to_vms(events_to_sync.flatten)
       rescue StandardError => e
         @logger.error("#{e}: #{e.message}")
       end
@@ -46,7 +44,7 @@ module VagrantPlugins
       # Updates deadzones state, and filters out events still in deadzones
       def process_deadzone(events)
         events.select do |event|
-          if @recently_changed[event.relative_path] >= Time.now.to_i - 2
+          if @recently_changed[event.relative_path] >= (Time.now.to_i - 2)
             @logger.change_too_soon(event.relative_path)
             next
           end
@@ -59,17 +57,13 @@ module VagrantPlugins
       end
 
       def group_events_by_machine(events)
-        machine_hash = {}
-        events.each do |event|
-          machine = event.watch[:machine]
-          machine_hash[machine] = [] unless machine_hash.key?(machine)
-          machine_hash[machine] << event
-        end
+        machine_hash = Hash.new { |hash, key| hash[key] = [] }
+        events.each { |event| machine_hash[event.watch[:machine]] << event }
         machine_hash
       end
 
       # Action events that have been bound to a watch and passed checks
-      def do_sync(ungrouped_events)
+      def forward_events_to_vms(ungrouped_events)
         group_events_by_machine(ungrouped_events).each do |machine, events|
           changed_files = events.map(&:full_path_on_guest)
           delete_events = events.select { |event| event.type == :removed }
@@ -85,7 +79,7 @@ module VagrantPlugins
       # Clear any stored change events from runs older than two seconds
       def clear_expired_change_locks
         @recently_changed.each do |rel_path, time|
-          @recently_changed.delete(rel_path) if time < Time.now.to_i - 2
+          @recently_changed.delete(rel_path) if time < (Time.now.to_i - 2)
         end
       end
     end

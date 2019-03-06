@@ -24,10 +24,5 @@ module VagrantPlugins
         Exiting...
       ).gsub(/^[ ]{8}/, '')
     end
-
-    # Thrown if path info is accessed for an event that isn't bound to a watch
-    class UnboundEventError < Vagrant::Errors::VagrantError
-      error_message 'Incorrect usage of unbound internal event'
-    end
   end
 end

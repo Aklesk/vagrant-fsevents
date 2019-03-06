@@ -13,11 +13,11 @@ module VagrantPlugins
       end
 
       # Logs when the file change callback is triggered
-      def callback_start(modified, added, removed)
+      def callback_start(mods, adds, removes)
         info('File change callback called!')
-        info("  - Modified: #{modified.inspect}")
-        info("  - Added: #{added.inspect}")
-        info("  - Removed: #{removed.inspect}")
+        info("  - Modified: #{mods.inspect}")
+        info("  - Added: #{adds.inspect}")
+        info("  - Removed: #{removes.inspect}")
       end
 
       # Logs when a path was changed too quickly and was ignored

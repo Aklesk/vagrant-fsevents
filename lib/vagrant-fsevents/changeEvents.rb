@@ -8,43 +8,33 @@ module VagrantPlugins
       attr_reader :type
       attr_reader :watch
       attr_reader :watch_path
+      attr_reader :relative_path
+      attr_reader :full_path_on_guest
 
       # Takes the output of a listen callback (as arrays of strings of
       # files split by type of change) and converts them into single events
-      def self.make_from(modified, added, removed)
+      # for a specific watch definition
+      def self.make(mods, adds, removes, watch_path, watch)
         change_events = []
-        structure = { modified: modified, added: added, removed: removed }
+        structure = { modified: mods, added: adds, removed: removes }
         structure.each do |type, files|
-          files.each { |path| change_events.push new(path, type) }
+          files.each do |path|
+            change_events.push new(path, type, watch_path, watch)
+          end
         end
         change_events
       end
 
-      def initialize(path, type, watch_path = nil, watch = nil)
+      def initialize(path, type, watch_path, watch)
         @path = path
         @type = type
-        @watch = watch
         @watch_path = watch_path
-      end
+        @watch = watch
 
-      # Takes an unassigned event, and makes a copy localised to a single watch
-      def bind_watch(watch_path, watch)
-        self.class.new(@path, @type, watch_path, watch)
-      end
-
-      # Returns the relative path of an event
-      def relative_path
-        raise UnboundEventError unless @watch
-
-        @path.sub(@watch_path, '')
-      end
-
-      def full_path_on_guest
-        raise UnboundEventError unless @watch && @watch_path
-
-        File.join(
-          (@watch[:opts][:override_guestpath] || @watch[:opts][:guestpath]),
-          relative_path
+        @relative_path = path.sub(watch_path, '')
+        @full_path_on_guest = File.join(
+          (watch[:opts][:override_guestpath] || watch[:opts][:guestpath]),
+          @relative_path
         )
       end
     end
