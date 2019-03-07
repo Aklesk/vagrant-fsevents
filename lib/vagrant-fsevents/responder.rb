@@ -56,9 +56,9 @@ module VagrantPlugins
       # Adds deadzone locks for given events
       def add_locks(events)
         lock_duration = Time.now.to_f + 2 + (0.02 * events.length)
+        @alerter.events(events)
         events.each do |event|
           @recently_changed[event.relative_path] = lock_duration
-          @alerter.event(event)
         end
         events
       end

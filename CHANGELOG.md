@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.2 - 2019-03-08
+
+- Combined event alerting into single multi-line string instead of multiple single lines
+
 ## 0.4.1 - 2019-03-07
 
 - File change lock-out scales with number of files changed (+0.02s/file)

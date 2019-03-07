@@ -7,14 +7,24 @@ module VagrantPlugins
         machine.ui.info("fsevents: Watching #{rel_path}")
       end
 
-      def event(event)
-        word = 'Changed' if event.type == :modified
-        word = 'Added' if event.type == :added
-        word = 'Removed' if event.type == :removed
+      def make_event_change_string(change_event)
+        word = 'Changed' if change_event.type == :modified
+        word = 'Added' if change_event.type == :added
+        word = 'Removed' if change_event.type == :removed
 
-        event.watch[:machine].ui.info(
-          "fsevents: #{word}: #{event.relative_path}"
-        )
+        "fsevents: #{word}: #{change_event.relative_path}"
+      end
+
+      def events(change_events)
+        return if change_events.empty?
+
+        alert_lines = change_events.map do |change_event|
+          make_event_change_string(change_event)
+        end
+
+        alert = alert_lines.join("\n")
+
+        change_events[0].watch[:machine].ui.info(alert)
       end
     end
   end
