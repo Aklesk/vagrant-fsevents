@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.1 - 2019-03-07
+
+- File change lock-out scales with number of files changed (+0.02s/file)
+- Touch and rm commands on guest machine now sent at the same time
+
 ## 0.4.0 - 2019-03-06
 
 - Renamed to vagrant-fsevents
