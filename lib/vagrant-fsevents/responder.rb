@@ -18,7 +18,7 @@ module VagrantPlugins
 
         events_to_sync = watches.map do |watch_path, watch|
           events = ChangeEvents.make(mods, adds, removes, watch_path, watch)
-          process_deadzone(select_by_relevance(events))
+          add_locks(remove_locked_events(select_by_relevance(events)))
         end
 
         forward_events_to_vms(events_to_sync.flatten)
@@ -41,19 +41,26 @@ module VagrantPlugins
         end
       end
 
-      # Updates deadzones state, and filters out events still in deadzones
-      def process_deadzone(events)
+      # Filters out events still in their change deadzone
+      def remove_locked_events(events)
         events.select do |event|
-          if @recently_changed[event.relative_path] >= (Time.now.to_i - 2)
+          if @recently_changed[event.relative_path] >= Time.now.to_f
             @logger.change_too_soon(event.relative_path)
             next
           end
 
-          # Add lock for future deadzone checking
-          @recently_changed[event.relative_path] = Time.now.to_i
-          @alerter.event(event)
           true
         end
+      end
+
+      # Adds deadzone locks for given events
+      def add_locks(events)
+        lock_duration = Time.now.to_f + 2 + (0.02 * events.length)
+        events.each do |event|
+          @recently_changed[event.relative_path] = lock_duration
+          @alerter.event(event)
+        end
+        events
       end
 
       def group_events_by_machine(events)
@@ -67,19 +74,21 @@ module VagrantPlugins
         group_events_by_machine(ungrouped_events).each do |machine, events|
           changed_files = events.map(&:full_path_on_guest)
           delete_events = events.select { |event| event.type == :removed }
-          machine.communicate.execute("touch -a '#{changed_files.join("' '")}'")
+          sync_command = "touch -a '#{changed_files.join("' '")}'"
 
-          next if delete_events.empty?
+          unless delete_events.empty?
+            deleted_files = delete_events.map(&:full_path_on_guest)
+            sync_command += "; rm -rf '#{deleted_files.join("' '")}'"
+          end
 
-          deleted_files = delete_events.map(&:full_path_on_guest)
-          machine.communicate.execute("rm -rf '#{deleted_files.join("' '")}'")
+          machine.communicate.execute(sync_command)
         end
       end
 
       # Clear any stored change events from runs older than two seconds
       def clear_expired_change_locks
         @recently_changed.each do |rel_path, time|
-          @recently_changed.delete(rel_path) if time < (Time.now.to_i - 2)
+          @recently_changed.delete(rel_path) if time < Time.now.to_f
         end
       end
     end

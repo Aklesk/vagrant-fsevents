@@ -29,8 +29,9 @@ as `touch` (and `rm`, as appropriate) using Vagrant's VM administration API.
 Inconveniently, while filesystem events are not properly forwarded into the VM,
 they're forwarded back out without issue, so every time this plugin triggers an
 update in the VM, a second filesystem event is fired in the host system. To
-prevent the obvious infinite-loop issue this could cause, a 2-second per-file
-dead-zone is used after each update event.
+prevent the obvious infinite-loop issue this could cause, a minimum 2-second
+per-file dead-zone is used after each update event (with additional time for
+updates with many files changed)
 
 This is unfortunately only a partial solution, and large filesystem changes such
 as checking out another git branch can still cause issues such as infinite

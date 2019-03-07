@@ -23,7 +23,7 @@ module VagrantPlugins
       # Logs when a path was changed too quickly and was ignored
       def change_too_soon(rel_path)
         info(
-          "#{rel_path} was changed less than two seconds ago, skipping"
+          "Skipping #{rel_path} - was changed too recently"
         )
       end
     end
