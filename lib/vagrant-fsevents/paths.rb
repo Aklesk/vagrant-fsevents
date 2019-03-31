@@ -21,12 +21,21 @@ module VagrantPlugins
           folder.each do |id, opts|
             next unless active_for_folder? opts[:fsevents]
 
-            hostpaths = get_hostpaths(opts, machine)
-
-            hostpaths.each do |hostpath|
-              @watch[hostpath] = { id: id, machine: machine, opts: opts }
-            end
+            add_folder_to_watch(id, opts, machine)
           end
+        end
+      end
+
+      # Populates `@watch` attribute from a single watch
+      def add_folder_to_watch(id, opts, machine)
+        get_paths(opts, machine).each do |paths|
+          @watch[paths[:hostpath]] = {
+            id: id,
+            machine: machine,
+            opts: opts,
+            sync_path: paths[:syncpath],
+            watch_path: paths[:hostpath]
+          }
         end
       end
 
@@ -69,18 +78,27 @@ module VagrantPlugins
       end
 
       # Get the hostpath(s) for a given synced folder
-      def get_hostpaths(options, machine)
+      def get_paths(options, machine)
         paths = (options[:include] || [options[:hostpath]])
         hostpaths = []
+        syncpath = get_host_path(options[:hostpath], machine)
         paths.each do |path|
-          hostpath = File.expand_path(path, machine.env.root_path)
-          hostpath = Vagrant::Util::Platform.fs_real_path(hostpath).to_s
-
-          # Avoid creating a nested directory
-          hostpath += '/' unless hostpath.end_with?('/')
-          hostpaths << hostpath
+          hostpaths << {
+            hostpath: get_host_path(path, machine),
+            syncpath: syncpath
+          }
         end
         hostpaths
+      end
+
+      # Convert a path to a full path on the host machine
+      def get_host_path(path, machine)
+        hostpath = File.expand_path(path, machine.env.root_path)
+        hostpath = Vagrant::Util::Platform.fs_real_path(hostpath).to_s
+
+        # Avoid creating a nested directory
+        hostpath += '/' unless hostpath.end_with?('/')
+        hostpath
       end
     end
   end

@@ -16,8 +16,8 @@ module VagrantPlugins
 
         clear_expired_change_locks
 
-        events_to_sync = watches.map do |watch_path, watch|
-          events = ChangeEvents.make(mods, adds, removes, watch_path, watch)
+        events_to_sync = watches.map do |_, watch|
+          events = ChangeEvents.make(mods, adds, removes, watch)
           add_locks(remove_locked_events(select_by_relevance(events)))
         end
 
