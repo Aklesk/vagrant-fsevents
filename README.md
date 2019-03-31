@@ -94,6 +94,24 @@ config.vm.synced_folder ".", "/vagrant", fsevents: true,
 This will exclude all files inside the `path1` and `some/directory`. It will
 also exclude files such as `another/directory/path1`.
 
+### Including files
+
+By default, the entire directory tree of the synced folder on the host machine
+is watched. However, there are potential [issues with symlinks][symlink-issues]
+that can arise from this approach, so until a more robust fix is in place you
+can work around symlink issues by overriding the default watch path(s) with the
+`:include` option. This takes an array of strings (as relative paths) to folders
+which must exist when the watch begins (no regexp support), and replaces the
+default synced_folder path with these individual folder paths.
+
+```ruby
+config.vm.synced_folder ".", "/vagrant", fsevents: true,
+                                         include: ["./src"]
+```
+
+This will watch only the files inside `src`, ignoring all other files and
+folders in the synced path.
+
 ### Guest path override
 
 If your actual path on the VM is not the same as the one in `synced_folder`, for
@@ -138,3 +156,4 @@ This plugin used [`vagrant-rsync-back`][vagrant-rsync-back] by @smerill and the
 [vagrant-bindfs]: https://github.com/gael-ian/vagrant-bindfs
 [vagrant-rsync-back]: https://github.com/smerrill/vagrant-rsync-back
 [vagrant-fsnotify]: https://github.com/adrienkohlbecker/vagrant-fsnotify
+[symlink-issues]: https://github.com/guard/listen/wiki/Duplicate-directory-errors

@@ -21,13 +21,11 @@ module VagrantPlugins
           folder.each do |id, opts|
             next unless active_for_folder? opts[:fsevents]
 
-            hostpath = File.expand_path(opts[:hostpath], machine.env.root_path)
-            hostpath = Vagrant::Util::Platform.fs_real_path(hostpath).to_s
+            hostpaths = get_hostpaths(opts, machine)
 
-            # Avoid creating a nested directory
-            hostpath += '/' unless hostpath.end_with?('/')
-
-            @watch[hostpath] = { id: id, machine: machine, opts: opts }
+            hostpaths.each do |hostpath|
+              @watch[hostpath] = { id: id, machine: machine, opts: opts }
+            end
           end
         end
       end
@@ -68,6 +66,21 @@ module VagrantPlugins
             )
           )
         )
+      end
+
+      # Get the hostpath(s) for a given synced folder
+      def get_hostpaths(options, machine)
+        paths = (options[:include] || [options[:hostpath]])
+        hostpaths = []
+        paths.each do |path|
+          hostpath = File.expand_path(path, machine.env.root_path)
+          hostpath = Vagrant::Util::Platform.fs_real_path(hostpath).to_s
+
+          # Avoid creating a nested directory
+          hostpath += '/' unless hostpath.end_with?('/')
+          hostpaths << hostpath
+        end
+        hostpaths
       end
     end
   end

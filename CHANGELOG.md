@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.3 - 2019-03-31
+
+- Added new 'include' keyword (complimenting the 'exclude' keyword) to help work around symlink issues with guard/listen
+
 ## 0.4.2 - 2019-03-08
 
 - Combined event alerting into single multi-line string instead of multiple single lines
