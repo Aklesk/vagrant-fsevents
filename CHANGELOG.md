@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.0 - 2019-04-01
+
+- Bugfix with new 'include' keyword - guest path wasn't always correct using includes
+- Updated version to semantically indicate addition of 'include' keyword
+
 ## 0.4.3 - 2019-03-31
 
 - Added new 'include' keyword (complimenting the 'exclude' keyword) to help work around symlink issues with guard/listen
